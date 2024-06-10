@@ -276,13 +276,13 @@ def modelsForDiagram():
         AdamaxModel = manyModelsTest(AdamaxModel)
         # Adamax
         AdamaxModel.compile(optimizer='adamax', loss='categorical_crossentropy', metrics=['accuracy'])
-        AdamaxHist = model.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
+        AdamaxHist = AdamaxModel.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
 
         NadamModel = Sequential()
         NadamModel = manyModelsTest(NadamModel)
         # Nadam (Adam with Nesterov momentum)
         NadamModel.compile(optimizer='nadam', loss='categorical_crossentropy', metrics=['accuracy'])
-        NadamHist = model.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
+        NadamHist = NadamModel.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
 
     else:
         label.config(text="Integer number obligatory")
