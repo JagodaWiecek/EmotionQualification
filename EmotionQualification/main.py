@@ -1,11 +1,13 @@
 import cv2
-import imghdr
+#import imghdr
 import numpy as np
 from matplotlib import pyplot as plt
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
 from tensorflow.keras.metrics import Precision, Recall, CategoricalAccuracy
+import seaborn as sns
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 import os
 import tkinter as tk
 from tkinter import filedialog
@@ -40,7 +42,7 @@ print(len(data))
 print(len(data_for_training))
 
 train = data.take(train_size)
-val = data.take(val_size)#
+val = data.take(val_size)
 test = data.skip(val_size).take(test_size)
 
 # creating model
@@ -139,6 +141,23 @@ def get_information():
         plt.show()
     else:
         print("history is empty, create some history")
+
+def MakeMatrix(model):
+    global emotions
+    global test
+    global train
+    y_true = np.concatenate([np.argmax(y, axis=-1) for x, y in test], axis=0)
+    y_pred_prob = model.predict(test)
+    y_pred = np.argmax(y_pred_prob, axis=1)
+    assert y_true.shape == y_pred.shape, "y_true and y_pred must have the same shape"
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(cm, annot=True, fmt='d', xticklabels=emotions, yticklabels=emotions)
+    plt.xlabel('Predicted Emotion')
+    plt.ylabel('True Emotion')
+    plt.title('Confusion Matrix')
+    plt.show()
+
 def save_model():
     value = entry3.get()
     global model
@@ -182,7 +201,8 @@ def evaluate_model():
     print(f'Precision:{pre.result().numpy()},') #przewidywania
     print(f'Recall: {re.result().numpy()},') #ile przewidywań poprawnie zidentyfikowanych
     print(f'Accuracy: {acc.result().numpy()}') #ile poprawnych przewidywań ogólnie
-    print("zadeklarowane")
+
+    MakeMatrix(model)
 
 def manyModelsTest(model):
     model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(256, 256, 3)))
@@ -216,6 +236,7 @@ def manyModelsTest(model):
     model.add(Dropout(0.5))
     model.add(Dense(256, activation='relu'))
     model.add(Dense(8, activation='softmax'))
+    model.summary()
 
     return model
 
