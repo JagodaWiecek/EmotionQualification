@@ -7,6 +7,7 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
 from tensorflow.keras.metrics import Precision, Recall, CategoricalAccuracy
 import seaborn as sns
+import pickle
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 import os
 import tkinter as tk
@@ -18,14 +19,14 @@ from PIL import Image, ImageTk
 data_dir = 'data' #folder where is database
 print(os.listdir(data_dir))#all emotions in database
 
+#global variables
 selected_path = None
 hist = None
 whatEmotion = None
+emotions = ['anger', 'contempt', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
 data = tf.keras.utils.image_dataset_from_directory('data', image_size=(256, 256), batch_size=32)
 data_for_testing = tf.keras.utils.image_dataset_from_directory('testing', image_size=(256, 256), batch_size=32)
-
-emotions = ['anger', 'contempt', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
 data = data.map(lambda x, y: (x / 255, tf.one_hot(y, depth=8)))
 data.as_numpy_iterator().next()
@@ -33,14 +34,15 @@ data.as_numpy_iterator().next()
 data_for_training = data_for_testing.map(lambda x, y: (x / 255, tf.one_hot(y, depth=8)))
 data_for_training.as_numpy_iterator().next()
 
-
+#number of data/batches
 train_size = int(len(data))
 val_size = int(len(data_for_training)*.6)
 test_size = int(len(data_for_training)*.4)
 
+#information how may batches there are
 print(len(data))
 print(len(data_for_training))
-
+#separating data
 train = data.take(train_size)
 val = data.take(val_size)
 test = data.skip(val_size).take(test_size)
@@ -48,27 +50,29 @@ test = data.skip(val_size).take(test_size)
 # creating model
 model = Sequential()
 
-
-#model.summary()
+#function to get image through file dialog
 def select_image():
     file_path = filedialog.askopenfilename()
     if file_path:
         image = Image.open(file_path)
-        image.thumbnail((300, 300))  # Zmniejszenie rozmiaru obrazu do wyświetlenia w oknie
+        image.thumbnail((300, 300))
         photo = ImageTk.PhotoImage(image)
         label.config(image= photo)
         label.image = photo
         global selected_path
         selected_path = file_path
 
+#function to put chosen image and check what emotion is on the photo
 def make_test():
     global selected_path
     global whatEmotion
+    #if there is chosen path
     if selected_path == None:
         label.config(text="No image, choose some")
     else:
         img = cv2.imread(selected_path)
         img_bgr = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        #resize photo to 256x256
         resize = tf.image.resize(img_bgr, (256, 256))
         plt.imshow(resize.numpy().astype(int))
         plt.show()
@@ -81,47 +85,71 @@ def make_test():
         label4 = tk.Label(root, text=f"The person on photo is: " + str(whatEmotion), padx=5)
         label4.pack()
 
-
+#function to train created model
 def train_model():
     value1 = entry1.get()  # value for epoches
     value2 = entry2.get()  # value for banches
     global val
     global model
     global train
-    # adding layers
+    #if model is not loaded
     if not model.built:
-        model.add(Conv2D(16, (3, 3), 1, activation='relu', input_shape=(256, 256, 3)))
-        model.add(MaxPooling2D())
-        model.add(Conv2D(32, (3, 3), 1, activation='relu'))
-        model.add(MaxPooling2D())
-        model.add(Conv2D(16, (3, 3), 1, activation='relu'))
-        model.add(MaxPooling2D())
+        # adding layers
+        model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(256, 256, 3)))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D((2, 2)))
+
+        model.add(Conv2D(64, (3, 3), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D((2, 2)))
+
+        model.add(Conv2D(128, (3, 3), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D((2, 2)))
+
+        model.add(Conv2D(256, (3, 3), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D((2, 2)))
+
+        model.add(Conv2D(512, (3, 3), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D((2, 2)))
+
+        model.add(Conv2D(512, (3, 3), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D((2, 2)))
+
         model.add(Flatten())
+        model.add(Dense(1024, activation='relu'))
+        model.add(Dropout(0.5))
+        model.add(Dense(512, activation='relu'))
+        model.add(Dropout(0.5))
         model.add(Dense(256, activation='relu'))
         model.add(Dense(8, activation='softmax'))
+        model.summary()
 
         #comlipe model
         model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
         print("model zbudowany")
 
-    label.config(text="Learning... ")
+
     if value1.isdigit():
         global hist
         if value2.isdigit():
             train = data.take(int(value2))
-
+            #training
             logdir = 'logs'
             tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
             hist = model.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
         else:
-
+            #training
             logdir = 'logs'
             tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
             hist = model.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
 
     else:
         label.config(text="Integer number obligatory")
-
+#function to get charts of loss, accuracy, validation loss, validation accuracy
 def get_information():
 
     global hist
@@ -142,104 +170,76 @@ def get_information():
     else:
         print("history is empty, create some history")
 
-def MakeMatrix(model):
-    global emotions
-    global test
-    global train
-    y_true = np.concatenate([np.argmax(y, axis=-1) for x, y in test], axis=0)
-    y_pred_prob = model.predict(test)
-    y_pred = np.argmax(y_pred_prob, axis=1)
-    assert y_true.shape == y_pred.shape, "y_true and y_pred must have the same shape"
-    cm = confusion_matrix(y_true, y_pred)
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(cm, annot=True, fmt='d', xticklabels=emotions, yticklabels=emotions)
-    plt.xlabel('Predicted Emotion')
-    plt.ylabel('True Emotion')
-    plt.title('Confusion Matrix')
-    plt.show()
-
+#function to save model with .keras in folder "models"
 def save_model():
     value = entry3.get()
     global model
     if value is not None:
-        model.save(os.path.join('models',str(value) + '.keras'))
+        modelName = str(value)+'.keras'
+        model.save(os.path.join('models', modelName))
     else:
         label.config(text="Enter name for model")
 
-
+#function to load model from chosen folder
 def load_model_from_dialog():
 
     file_path = filedialog.askopenfilename()
     if file_path is not None:
         global model
-
         new_model = tf.keras.models.load_model(file_path)
         new_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-        #print(model.built)
-        #if not model.built:
-         #   print("modelu nie ma")
         model = new_model
-        #model.summary()
-        #print(model.built)
 
-
+#function to evaluate model,
 def evaluate_model():
     pre = Precision()
     re = Recall()
     acc = CategoricalAccuracy()
-    #print("deklaracja zmiennych")
+
     global data
     global test
-    #data_iterator = data.as_numpy_iterator()
-    #batch = data_iterator.next()
     for batch in test.as_numpy_iterator():
         X, y = batch
         yhat = model.predict(X)
         pre.update_state(y, yhat)
         re.update_state(y, yhat)
         acc.update_state(y, yhat)
-    print(f'Precision:{pre.result().numpy()},') #przewidywania
-    print(f'Recall: {re.result().numpy()},') #ile przewidywań poprawnie zidentyfikowanych
-    print(f'Accuracy: {acc.result().numpy()}') #ile poprawnych przewidywań ogólnie
+    print(f'Precision:{pre.result().numpy()},') #prediction
+    print(f'Recall: {re.result().numpy()},') #how many prediction guessed correctly
+    print(f'Accuracy: {acc.result().numpy()}') #how many correct prediction generally
 
-    MakeMatrix(model)
-
+#function with chosen model to test and create charts
 def manyModelsTest(model):
-    model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(256, 256, 3)))
-    model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2)))
 
-    model.add(Conv2D(64, (3, 3), activation='relu'))
+    model.add(Conv2D(16, (3, 3), padding='same', activation='relu', input_shape=(256, 256, 3)))
     model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2)))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
 
-    model.add(Conv2D(128, (3, 3), activation='relu'))
-    model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2)))
 
-    model.add(Conv2D(256, (3, 3), activation='relu'))
+    model.add(Conv2D(32, (3, 3), padding='same', activation='relu'))
     model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2)))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
 
-    model.add(Conv2D(512, (3, 3), activation='relu'))
-    model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2)))
 
-    model.add(Conv2D(512, (3, 3), activation='relu'))
+    model.add(Conv2D(64, (3, 3), padding='same', activation='relu'))
     model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2)))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+
+
+    model.add(Conv2D(128, (3, 3), padding='same', activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
 
     model.add(Flatten())
-    model.add(Dense(1024, activation='relu'))
+
+    model.add(Dense(128, activation='relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(512, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(256, activation='relu'))
+
     model.add(Dense(8, activation='softmax'))
-    model.summary()
 
     return model
 
+#function contains seven models with diffrent compile types
+#after training four diffrent charts appear
 def modelsForDiagram():
     value1 = entry4.get()  # value for epoches
     value2 = entry5.get()  # value for batches
@@ -263,42 +263,51 @@ def modelsForDiagram():
         logdir = 'logs'
         tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
 
+
         AdamModel = Sequential()
         AdamModel = manyModelsTest(AdamModel)
+        AdamModel.summary()
+        print("******* New Model 1/7 *******")
         #Adam compile
         AdamModel.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
         AdamHist = AdamModel.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
 
+        print("******* New Model 2/7 *******")
         SGDModel = Sequential()
         SGDModel = manyModelsTest(SGDModel)
         # Stochastic Gradient Descent (SGD)
         SGDModel.compile(optimizer='sgd', loss='categorical_crossentropy', metrics=['accuracy'])
         SGDHist = SGDModel.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
 
+        print("******* New Model 3/7 *******")
         RMSModel = Sequential()
         RMSModel = manyModelsTest(RMSModel)
         # RMSprop
         RMSModel.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
         RMSpropHist = RMSModel.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
 
+        print("******* New Model 4/7 *******")
         AdagradModel = Sequential()
         AdagradModel = manyModelsTest(AdagradModel)
         # Adagrad
         AdagradModel.compile(optimizer='adagrad', loss='categorical_crossentropy', metrics=['accuracy'])
         AdagradHist = AdagradModel.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
 
+        print("******* New Model 5/7 *******")
         AdadeltaModel = Sequential()
         AdadeltaModel = manyModelsTest(AdadeltaModel)
         # Adadelta
         AdadeltaModel.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
         AdadeltaHist = AdadeltaModel.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
 
+        print("******* New Model 6/7 *******")
         AdamaxModel = Sequential()
         AdamaxModel = manyModelsTest(AdamaxModel)
         # Adamax
         AdamaxModel.compile(optimizer='adamax', loss='categorical_crossentropy', metrics=['accuracy'])
         AdamaxHist = AdamaxModel.fit(train, epochs=int(value1), validation_data =val, callbacks=[tensorboard_callback])
 
+        print("******* New Model 7/7 *******")
         NadamModel = Sequential()
         NadamModel = manyModelsTest(NadamModel)
         # Nadam (Adam with Nesterov momentum)
@@ -307,7 +316,7 @@ def modelsForDiagram():
 
     else:
         label.config(text="Integer number obligatory")
-
+#chart for loss
     fig = plt.figure()
     plt.plot(AdamHist.history['loss'], color='teal', label='Adam-loss')
     plt.plot(SGDHist.history['loss'], color='red', label='SGD-loss')
@@ -319,7 +328,7 @@ def modelsForDiagram():
     fig.suptitle('Loss', fontsize=20)
     plt.legend(loc="upper left")
     plt.show()
-
+#chart for validation loss
     fig = plt.figure()
     plt.plot(AdamHist.history['val_loss'], color='teal', label='Adam-val_loss')
     plt.plot(SGDHist.history['val_loss'], color='red', label='SGD-val_loss')
@@ -331,7 +340,7 @@ def modelsForDiagram():
     fig.suptitle('validation loss', fontsize=20)
     plt.legend(loc="upper left")
     plt.show()
-
+#chart for accuracy
     fig = plt.figure()
     plt.plot(AdamHist.history['accuracy'], color='teal', label='Adam-accuracy')
     plt.plot(SGDHist.history['accuracy'], color='red', label='SGD-accuracy')
@@ -343,7 +352,7 @@ def modelsForDiagram():
     fig.suptitle('Accuracy', fontsize=20)
     plt.legend(loc="upper left")
     plt.show()
-
+#chart for validation accuracy
     fig = plt.figure()
     plt.plot(AdamHist.history['val_accuracy'], color='teal', label='Adam-val_accuracy')
     plt.plot(SGDHist.history['val_accuracy'], color='red', label='SGD-val_accuracy')
@@ -361,6 +370,7 @@ def modelsForDiagram():
 root = tk.Tk()
 root.geometry("500x700")
 root.title("App Emotion qualification")
+#zone to write number of epochs for training
 entry1 = tk.Entry(root)
 label1 = tk.Label(root, text="Epoches" + ":", padx=5)
 label1.pack()
@@ -368,6 +378,7 @@ entry1.pack()
 
 label2 = tk.Label(root, text="how many batches(all if null)" + ":", padx=5)
 label2.pack()
+#zone to write number ofbatches for training
 entry2 = tk.Entry(root)
 entry2.pack()
 
@@ -398,6 +409,7 @@ entry3.pack()
 
 LoadModel_button = tk.Button(root, text="Load model", command=load_model_from_dialog)
 LoadModel_button.pack()
+
 
 # to create photo
 label = tk.Label(root)
