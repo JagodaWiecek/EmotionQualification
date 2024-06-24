@@ -1,14 +1,10 @@
 import cv2
-#import imghdr
 import numpy as np
 from matplotlib import pyplot as plt
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
 from tensorflow.keras.metrics import Precision, Recall, CategoricalAccuracy
-import seaborn as sns
-import pickle
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 import os
 import tkinter as tk
 from tkinter import filedialog
